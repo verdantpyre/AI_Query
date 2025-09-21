@@ -1,3 +1,5 @@
+import sys
+import os
 from tkinter.font import families
 import tkinter as tk
 import sklearn as sk
@@ -9,6 +11,11 @@ from tkinter import ttk
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w')
+
 def sanitize(text):
     out = ''
     text = " ".join(text.casefold().split())
@@ -18,7 +25,7 @@ def sanitize(text):
     return out
 
 def preprocess(row):
-    if isinstance(row, pandas.Series):
+    if isinstance(row, pd.Series):
         combined_text = " ".join([sanitize(row[k]) for k in ('language', 'origin_query', 'category_path')])
     elif isinstance(row, str):
         combined_text = sanitize(row)
@@ -30,20 +37,37 @@ def preprocess(row):
 
 class ProductionClassifier:
     def __init__(self, name):
-        self.vect = TfidfVectorizer(ngram_range=(1,2))
         self.cls = RandomForestClassifier(n_estimators=100,random_state=42,
-                                          min_samples_split= 20,n_jobs=-1 ,verbose=3)
+                                      min_samples_split= 20,n_jobs=-1)
+        self.vect = TfidfVectorizer(ngram_range=(1,2))
         self.trained = 0
 
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            base_path = sys._MEIPASS
+        else:
+            # Running as script
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        model_path = os.path.join(base_path, name)
+        
         try:
-            with open(name, "rb") as f:
+            with open(model_path, "rb") as f:
                 dic = pickle.load(f)
             if dic["trained"] !=1:
                 raise ValueError
             self.vect = dic["vect"]
             self.cls = dic["cls"]
-        except Exception:
-            print("Model not found.")
+            print("Model loaded successfully from:", model_path)
+        except Exception as e:
+            print("Model not found or error loading:", e)
+            print("Current working directory:", os.getcwd())
+            print("Files in directory:", os.listdir('.'))
+            if os.path.exists(model_path):
+                print("Model file exists but could not be loaded")
+            else:
+                print("Model file does not exist at path:", model_path)
+            quit()
 
     def predict(self, rw):
         prepared_text = preprocess(rw)
@@ -225,8 +249,8 @@ class MainScreen:
             self.hier = ''
             self.lang = ''
             self.tbox.insert(tk.END, f'Enter language(en/it/fr...): ')
-        except:
-            self.tbox.insert(tk.END, 'An error unexpected occurred.\n')
+        except Exception as ex:
+            self.tbox.insert(tk.END, f'An error unexpected occurred. {ex.args}\n')
         self.tbox.config(state=tk.DISABLED)
 
 class Prompt:
