@@ -62,7 +62,7 @@ pyinstaller-env\Scripts\activate
 pip install pyinstaller  
 pip install scikit-learn  
 pip install pandas //also installs numpy  
-pyinstaller --noconsole --onefile -- "models/model/used;models" gui.py  
+pyinstaller --noconsole --onefile --add-data "models/model/used;models" gui.py  
 ./dist/gui.exe  
 
 main.py provides an in-terminal way for individual predictions  
